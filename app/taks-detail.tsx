@@ -19,7 +19,7 @@ import {
   Paperclip,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 
 type SubTask = {
   id: string;
@@ -44,23 +44,44 @@ type Task = {
 };
 
 export default function TaskDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+
   const [task, setTask] = useState<Task | null>(null);
   const [subtasks, setSubtasks] = useState<SubTask[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadTask();
+    if (id) {
+      loadTask();
+    } else {
+      setIsLoading(false);
+    }
   }, [id]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (id) {
+        loadTask();
+      }
+    }, [id]),
+  );
 
   const loadTask = async () => {
     try {
       setIsLoading(true);
       const data = await AsyncStorage.getItem("tasks");
+      console.log("📦 Data from storage:", data);
+
       if (data) {
         const tasks: Task[] = JSON.parse(data);
+        console.log("📋 All tasks:", tasks);
+        console.log("🔍 Looking for task with id:", id);
+
         const found = tasks.find((t) => t.id === id);
+        console.log("✅ Found task:", found);
+
         if (found) {
           setTask(found);
           setSubtasks(
@@ -85,10 +106,14 @@ export default function TaskDetail() {
                   },
                 ],
           );
+        } else {
+          console.log("❌ Task not found with id:", id);
         }
+      } else {
+        console.log("📭 No data in storage");
       }
     } catch (e) {
-      console.log(e);
+      console.log("loadTask error:", e);
       Alert.alert("Error", "Gagal memuat task");
     } finally {
       setIsLoading(false);
@@ -100,7 +125,6 @@ export default function TaskDetail() {
       s.id === stId ? { ...s, done: !s.done } : s,
     );
     setSubtasks(updated);
-
     try {
       const data = await AsyncStorage.getItem("tasks");
       if (data && task) {
@@ -111,7 +135,7 @@ export default function TaskDetail() {
         await AsyncStorage.setItem("tasks", JSON.stringify(newTasks));
       }
     } catch (e) {
-      console.log(e);
+      console.log("toggleSubtask error:", e);
     }
   };
 
@@ -129,58 +153,55 @@ export default function TaskDetail() {
         router.back();
       }
     } catch (e) {
-      console.log(e);
+      console.log("markComplete error:", e);
       Alert.alert("Error", "Gagal menyimpan task");
     }
   };
 
-  // ✅ FUNGSI DELETE TASK YANG DIPERBAIKI
+  // ✅ FUNGSI DELETE TASK - FIXED TypeScript error
   const deleteTask = () => {
-    Alert.alert(
-      "Hapus Task",
-      "Apakah Anda yakin ingin menghapus task ini? Tindakan ini tidak dapat dibatalkan.",
-      [
-        {
-          text: "Batal",
-          style: "cancel",
-        },
-        {
-          text: "Hapus",
-          style: "destructive",
-          onPress: async () => {
-            if (!task || isDeleting) return;
+    if (!task) {
+      Alert.alert("Error", "Task tidak ditemukan");
+      return;
+    }
 
-            setIsDeleting(true);
-            try {
-              // Ambil semua tasks dari storage
-              const data = await AsyncStorage.getItem("tasks");
-              const semuaTasks: Task[] = data ? JSON.parse(data) : [];
+    if (isDeleting) return;
 
-              // Filter task yang akan dihapus
-              const filteredTasks = semuaTasks.filter((t) => t.id !== task.id);
+    Alert.alert("Hapus Task", `Hapus "${task.title}"?`, [
+      { text: "Batal", style: "cancel" },
+      {
+        text: "Hapus",
+        style: "destructive",
+        onPress: async () => {
+          setIsDeleting(true);
+          try {
+            const data = await AsyncStorage.getItem("tasks");
 
-              // Simpan kembali ke storage
+            if (data) {
+              const semuaTasks: Task[] = JSON.parse(data);
+              const tasksSetelahHapus = semuaTasks.filter(
+                (t) => t.id !== task.id,
+              );
               await AsyncStorage.setItem(
                 "tasks",
-                JSON.stringify(filteredTasks),
+                JSON.stringify(tasksSetelahHapus),
               );
-
-              // Tampilkan pesan sukses
-              Alert.alert("Berhasil", "Task berhasil dihapus", [
-                {
-                  text: "OK",
-                  onPress: () => router.back(),
-                },
-              ]);
-            } catch (e) {
-              console.log(e);
-              Alert.alert("Error", "Gagal menghapus task. Silakan coba lagi.");
-              setIsDeleting(false);
+              router.back();
+            } else {
+              router.back();
             }
-          },
+          } catch (error: any) {
+            // ✅ Perbaikan: menggunakan type 'any'
+            console.error("Error detail:", error);
+            Alert.alert(
+              "Error",
+              `Gagal menghapus: ${error?.message || "Terjadi kesalahan"}`,
+            );
+            setIsDeleting(false);
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const formatDate = (dateStr: string) => {
@@ -190,6 +211,10 @@ export default function TaskDetail() {
       day: "numeric",
       year: "numeric",
     });
+  };
+
+  const handleBack = () => {
+    if (!isDeleting) router.back();
   };
 
   if (isLoading) {
@@ -216,21 +241,42 @@ export default function TaskDetail() {
           backgroundColor: "#F5F5F7",
           justifyContent: "center",
           alignItems: "center",
+          paddingHorizontal: 32,
         }}
       >
-        <Text style={{ color: "#aaa", marginBottom: 16 }}>
-          Task tidak ditemukan
-        </Text>
-        <TouchableOpacity
-          onPress={() => router.back()}
+        <Text style={{ fontSize: 48, marginBottom: 16 }}>😕</Text>
+        <Text
           style={{
-            backgroundColor: "#6C63FF",
-            paddingHorizontal: 20,
-            paddingVertical: 10,
-            borderRadius: 8,
+            color: "#1a1a1a",
+            fontSize: 18,
+            fontWeight: "700",
+            marginBottom: 8,
           }}
         >
-          <Text style={{ color: "#fff", fontWeight: "600" }}>Kembali</Text>
+          Task tidak ditemukan
+        </Text>
+        <Text
+          style={{
+            color: "#aaa",
+            fontSize: 13,
+            textAlign: "center",
+            marginBottom: 24,
+          }}
+        >
+          ID: {id ?? "tidak ada"}
+        </Text>
+        <TouchableOpacity
+          onPress={handleBack}
+          style={{
+            backgroundColor: "#6C63FF",
+            paddingHorizontal: 28,
+            paddingVertical: 12,
+            borderRadius: 12,
+          }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
+            ← Kembali
+          </Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -251,7 +297,7 @@ export default function TaskDetail() {
           borderBottomColor: "#E8E8F0",
         }}
       >
-        <TouchableOpacity onPress={() => router.back()} disabled={isDeleting}>
+        <TouchableOpacity onPress={handleBack} disabled={isDeleting}>
           <ArrowLeft size={22} color="#1a1a1a" />
         </TouchableOpacity>
         <Text style={{ fontSize: 17, fontWeight: "700", color: "#1a1a1a" }}>
@@ -356,7 +402,7 @@ export default function TaskDetail() {
             </View>
           </View>
 
-          {/* Project Scope / Description */}
+          {/* Description */}
           {task.description && (
             <View style={{ marginBottom: 24 }}>
               <Text
@@ -376,7 +422,7 @@ export default function TaskDetail() {
             </View>
           )}
 
-          {/* Execution Roadmap / Subtasks */}
+          {/* Subtasks */}
           <View style={{ marginBottom: 24 }}>
             <Text
               style={{
@@ -389,7 +435,6 @@ export default function TaskDetail() {
             >
               EXECUTION ROADMAP
             </Text>
-
             {subtasks.map((sub) => (
               <TouchableOpacity
                 key={sub.id}
@@ -449,7 +494,6 @@ export default function TaskDetail() {
                 {sub.hasAttachment && <Paperclip size={16} color="#6C63FF" />}
               </TouchableOpacity>
             ))}
-
             <TouchableOpacity
               style={{
                 flexDirection: "row",
@@ -486,9 +530,7 @@ export default function TaskDetail() {
             >
               COLLABORATORS
             </Text>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: -8 }}
-            >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
               {[0, 1, 2].map((i) => (
                 <View
                   key={i}
@@ -515,7 +557,7 @@ export default function TaskDetail() {
                   backgroundColor: "#6C63FF",
                   borderWidth: 2,
                   borderColor: "#EBEBF0",
-                  marginLeft: 4,
+                  marginLeft: 12,
                   justifyContent: "center",
                   alignItems: "center",
                 }}
@@ -549,7 +591,7 @@ export default function TaskDetail() {
           borderTopColor: "#E8E8F0",
         }}
       >
-        {/* Tombol Mark Complete */}
+        {/* Mark Complete */}
         <TouchableOpacity
           onPress={markComplete}
           disabled={task.done || isDeleting}
@@ -567,7 +609,7 @@ export default function TaskDetail() {
             shadowRadius: 12,
             shadowOffset: { width: 0, height: 4 },
             elevation: 4,
-            opacity: task.done || isDeleting ? 0.85 : 1,
+            opacity: task.done || isDeleting ? 0.75 : 1,
           }}
         >
           <CheckCheck size={20} color="#fff" />
@@ -576,10 +618,11 @@ export default function TaskDetail() {
           </Text>
         </TouchableOpacity>
 
-        {/* Tombol Hapus dengan Loading State */}
+        {/* Tombol Hapus */}
         <TouchableOpacity
           onPress={deleteTask}
           disabled={isDeleting}
+          activeOpacity={0.7}
           style={{
             width: 52,
             height: 52,
@@ -587,12 +630,14 @@ export default function TaskDetail() {
             backgroundColor: "#fff",
             justifyContent: "center",
             alignItems: "center",
-            shadowColor: "#000",
-            shadowOpacity: 0.06,
+            shadowColor: "#FF5252",
+            shadowOpacity: 0.15,
             shadowRadius: 8,
             shadowOffset: { width: 0, height: 2 },
-            elevation: 2,
+            elevation: 3,
             opacity: isDeleting ? 0.5 : 1,
+            borderWidth: 1,
+            borderColor: "#FFE5E5",
           }}
         >
           {isDeleting ? (

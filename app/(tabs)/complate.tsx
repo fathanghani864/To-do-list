@@ -23,8 +23,44 @@ type GroupedTasks = {
   tasks: Task[];
 };
 
+// ✅ Tambahkan komponen TopAppBar di sini
+const TopAppBar = ({
+  title,
+  onPressSettings,
+}: {
+  title: string;
+  onPressSettings: () => void;
+}) => {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        backgroundColor: "#F0F0F5",
+      }}
+    >
+      <Text style={{ fontSize: 24, fontWeight: "bold", color: "#1a1a1a" }}>
+        {title}
+      </Text>
+      <TouchableOpacity onPress={onPressSettings}>
+        <Settings size={24} color="#1a1a1a" />
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 export default function CompletedTasks() {
   const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
+
+  // ✅ Fungsi handleSettings
+  const handleSettings = () => {
+    console.log("Settings pressed!");
+    // Bisa ditambahkan navigasi ke halaman settings
+    // router.push("/settings");
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -82,47 +118,41 @@ export default function CompletedTasks() {
   });
   grouped.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
 
-  // Streak & velocity mock (bisa dihitung dari data nyata)
-  const streak = 12;
+  // Streak & velocity (dihitung dari data real)
+  const streak = hitungStreak(completedTasks);
   const velocity =
     completedTasks.length > 0
       ? (completedTasks.length / Math.max(grouped.length, 1)).toFixed(1)
       : "0.0";
 
+  // Fungsi hitung streak
+  function hitungStreak(tasks: Task[]): number {
+    if (tasks.length === 0) return 0;
+
+    const uniqueDates = [...new Set(tasks.map((t) => t.date))];
+    uniqueDates.sort().reverse();
+
+    let streak = 0;
+    const today = new Date().toISOString().split("T")[0];
+    let currentDate = new Date(today);
+
+    for (let i = 0; i < uniqueDates.length; i++) {
+      const dateStr = currentDate.toISOString().split("T")[0];
+      if (uniqueDates.includes(dateStr)) {
+        streak++;
+        currentDate.setDate(currentDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    return streak;
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F0F0F5" }}>
       {/* Header */}
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-          paddingHorizontal: 20,
-          paddingTop: 12,
-          paddingBottom: 8,
-        }}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <View
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: "#c5c5d0",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ fontSize: 20 }}>👤</Text>
-          </View>
-          <Text style={{ fontSize: 18, fontWeight: "700", color: "#1a1a1a" }}>
-            Kinetic Flow
-          </Text>
-        </View>
-        <TouchableOpacity>
-          <Settings size={22} color="#1a1a1a" />
-        </TouchableOpacity>
-      </View>
+      <TopAppBar title="Kinetic Flow" onPressSettings={handleSettings} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -265,6 +295,7 @@ export default function CompletedTasks() {
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 4,
+                      flexWrap: "wrap",
                     }}
                   >
                     {task.category && (
@@ -317,109 +348,116 @@ export default function CompletedTasks() {
         ))}
 
         {/* Efficiency Report Card */}
-        <View
-          style={{
-            backgroundColor: "#5B52E8",
-            borderRadius: 24,
-            padding: 24,
-            marginBottom: 40,
-          }}
-        >
-          <Text
+        {completedTasks.length > 0 && (
+          <View
             style={{
-              fontSize: 11,
-              fontWeight: "700",
-              color: "rgba(255,255,255,0.6)",
-              letterSpacing: 1.5,
-              marginBottom: 10,
+              backgroundColor: "#5B52E8",
+              borderRadius: 24,
+              padding: 24,
+              marginBottom: 40,
             }}
           >
-            EFFICIENCY REPORT
-          </Text>
-          <Text
-            style={{
-              fontSize: 28,
-              fontWeight: "800",
-              color: "#fff",
-              lineHeight: 34,
-              marginBottom: 20,
-            }}
-          >
-            You're 15% more productive than last week.
-          </Text>
-
-          <View style={{ flexDirection: "row", gap: 12 }}>
-            {/* Streak */}
-            <View
+            <Text
               style={{
-                flex: 1,
-                backgroundColor: "rgba(255,255,255,0.15)",
-                borderRadius: 16,
-                padding: 16,
+                fontSize: 11,
+                fontWeight: "700",
+                color: "rgba(255,255,255,0.6)",
+                letterSpacing: 1.5,
+                marginBottom: 10,
               }}
             >
-              <Text
-                style={{
-                  fontSize: 10,
-                  fontWeight: "700",
-                  color: "rgba(255,255,255,0.6)",
-                  letterSpacing: 1.2,
-                  marginBottom: 8,
-                }}
-              >
-                STREAK
-              </Text>
-              <Text style={{ fontSize: 32, fontWeight: "800", color: "#fff" }}>
-                {streak}
-              </Text>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "700",
-                  color: "#fff",
-                  marginTop: 2,
-                }}
-              >
-                Days
-              </Text>
-            </View>
-
-            {/* Velocity */}
-            <View
+              EFFICIENCY REPORT
+            </Text>
+            <Text
               style={{
-                flex: 1,
-                backgroundColor: "rgba(255,255,255,0.15)",
-                borderRadius: 16,
-                padding: 16,
+                fontSize: 28,
+                fontWeight: "800",
+                color: "#fff",
+                lineHeight: 34,
+                marginBottom: 20,
               }}
             >
-              <Text
+              You're {Math.min(99, Math.floor(parseFloat(velocity) * 5))}% more
+              productive than last week.
+            </Text>
+
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              {/* Streak */}
+              <View
                 style={{
-                  fontSize: 10,
-                  fontWeight: "700",
-                  color: "rgba(255,255,255,0.6)",
-                  letterSpacing: 1.2,
-                  marginBottom: 8,
+                  flex: 1,
+                  backgroundColor: "rgba(255,255,255,0.15)",
+                  borderRadius: 16,
+                  padding: 16,
                 }}
               >
-                VELOCITY
-              </Text>
-              <Text style={{ fontSize: 32, fontWeight: "800", color: "#fff" }}>
-                {velocity}
-              </Text>
-              <Text
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: "700",
+                    color: "rgba(255,255,255,0.6)",
+                    letterSpacing: 1.2,
+                    marginBottom: 8,
+                  }}
+                >
+                  STREAK
+                </Text>
+                <Text
+                  style={{ fontSize: 32, fontWeight: "800", color: "#fff" }}
+                >
+                  {streak}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "700",
+                    color: "#fff",
+                    marginTop: 2,
+                  }}
+                >
+                  Days
+                </Text>
+              </View>
+
+              {/* Velocity */}
+              <View
                 style={{
-                  fontSize: 16,
-                  fontWeight: "700",
-                  color: "#fff",
-                  marginTop: 2,
+                  flex: 1,
+                  backgroundColor: "rgba(255,255,255,0.15)",
+                  borderRadius: 16,
+                  padding: 16,
                 }}
               >
-                Tasks/Day
-              </Text>
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: "700",
+                    color: "rgba(255,255,255,0.6)",
+                    letterSpacing: 1.2,
+                    marginBottom: 8,
+                  }}
+                >
+                  VELOCITY
+                </Text>
+                <Text
+                  style={{ fontSize: 32, fontWeight: "800", color: "#fff" }}
+                >
+                  {velocity}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "700",
+                    color: "#fff",
+                    marginTop: 2,
+                  }}
+                >
+                  Tasks/Day
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

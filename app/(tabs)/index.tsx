@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import React, { useState, useCallback } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Clock, Calendar, Plus } from "lucide-react-native";
+import { Clock, Calendar, Plus, Settings } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 
@@ -16,9 +16,40 @@ type Task = {
   date: string;
 };
 
-export default function Main() {
+// Komponen TopAppBar sederhana (karena module tidak ditemukan)
+const TopAppBar = ({
+  title,
+  onPressSettings,
+}: {
+  title: string;
+  onPressSettings: () => void;
+}) => {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingVertical: 12,
+      }}
+    >
+      <Text style={{ fontSize: 24, fontWeight: "bold", color: "#1a1a1a" }}>
+        {title}
+      </Text>
+      <TouchableOpacity onPress={onPressSettings}>
+        <Settings size={24} color="#1a1a1a" />
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+export default function HomeScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [totalSelesaiHariIni, setTotalSelesaiHariIni] = useState(0);
+
+  const handleSettings = () => {
+    console.log("Settings pressed!");
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -32,7 +63,7 @@ export default function Main() {
       if (data) {
         const semua = JSON.parse(data) as Task[];
         const hariIni = new Date().toISOString().split("T")[0];
-        // ✅ Hitung yang selesai dari data asli sebelum difilter
+        // Hitung yang selesai dari data asli sebelum difilter
         const selesaiHariIni = semua.filter(
           (t) => t.date === hariIni && t.done,
         ).length;
@@ -47,8 +78,8 @@ export default function Main() {
 
   const hariIni = new Date().toISOString().split("T")[0];
   const taskHariIni = tasks.filter((t) => t.date === hariIni);
-  const totalTask = taskHariIni.length + totalSelesaiHariIni; // ✅ total asli termasuk yang done
-  const taskSelesai = totalSelesaiHariIni; // ✅ dari state terpisah
+  const totalTask = taskHariIni.length + totalSelesaiHariIni; // total asli termasuk yang done
+  const taskSelesai = totalSelesaiHariIni; // dari state terpisah
   const persen =
     totalTask === 0 ? 0 : Math.round((taskSelesai / totalTask) * 100);
   const taskUpcoming = tasks.filter((t) => t.date > hariIni);
@@ -73,20 +104,25 @@ export default function Main() {
   };
 
   const tandaiSelesai = async (id: string) => {
-    const taskBaru = tasks.map((t) =>
-      t.id === id ? { ...t, done: !t.done } : t,
-    );
-    try {
-      await AsyncStorage.setItem("tasks", JSON.stringify(taskBaru));
-      // ✅ Update counter selesai hari ini
-      const selesaiHariIni = taskBaru.filter(
-        (t) => t.date === hariIni && t.done,
-      ).length;
-      setTotalSelesaiHariIni(selesaiHariIni);
-      // Tampilan index hanya yang belum selesai
-      setTasks(taskBaru.filter((t) => !t.done));
-    } catch (e) {
-      console.log(e);
+    // Ambil data terbaru dari storage
+    const data = await AsyncStorage.getItem("tasks");
+    if (data) {
+      const semuaTasks: Task[] = JSON.parse(data);
+      const taskBaru = semuaTasks.map((t) =>
+        t.id === id ? { ...t, done: !t.done } : t,
+      );
+      try {
+        await AsyncStorage.setItem("tasks", JSON.stringify(taskBaru));
+        // Update counter selesai hari ini
+        const selesaiHariIni = taskBaru.filter(
+          (t) => t.date === hariIni && t.done,
+        ).length;
+        setTotalSelesaiHariIni(selesaiHariIni);
+        // Tampilan index hanya yang belum selesai
+        setTasks(taskBaru.filter((t) => !t.done));
+      } catch (e) {
+        console.log(e);
+      }
     }
   };
 
@@ -96,6 +132,8 @@ export default function Main() {
         showsVerticalScrollIndicator={false}
         style={{ paddingHorizontal: 20 }}
       >
+        <TopAppBar title="Kinetic Flow" onPressSettings={handleSettings} />
+
         {/* Daily Momentum */}
         <View style={{ marginTop: 20, marginBottom: 30 }}>
           <Text style={{ color: "#aaa", fontSize: 12, letterSpacing: 1.5 }}>
